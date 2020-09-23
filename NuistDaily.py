@@ -1,11 +1,15 @@
 import hashlib
 import json
 import re
+import time
+import warnings
 import webbrowser
 from datetime import date, datetime, timedelta
 
 import numpy as np
 import requests
+
+warnings.filterwarnings("ignore")
 
 
 class NuistDaily(object):
@@ -32,20 +36,20 @@ class NuistDaily(object):
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.122 Safari/537.36"
         }
         self.news_list = {
-            '学术报告': [],
-            '招标信息': [],
-            '会议通知': [],
-            '党政事务': [],
-            '组织人事': [],
-            '科研信息': [],
-            '招生就业': [],
             '教学考试': [],
-            '创新创业': [],
-            '学术研讨': [],
-            '专题讲座': [],
-            '校园活动': [],
             '学院动态': [],
-            '其他': []
+            '校园活动': [],
+            '学术报告': [],
+            '科研信息': [],
+            '专题讲座': [],
+            '学术研讨': [],
+            '创新创业': [],
+            '招生就业': [],
+            '其他': [],
+            '招标信息': [],
+            '党政事务': [],
+            '会议通知': [],
+            '组织人事': []
         }
 
     # 先post 再get
@@ -54,11 +58,13 @@ class NuistDaily(object):
         self.session.post(url=self.post_url,
                           data=json.dumps(self.login_data),
                           headers=self.headers,
-                          verify=False)
+                          verify=False,
+                          allow_redirects=False)
         # get 获取页面
         html = self.session.get(url=self.get_url,
                                 headers=self.headers,
-                                verify=False)
+                                verify=False,
+                                allow_redirects=False)
         html.encoding = 'utf-8'
         self.html = html.text
 
@@ -78,7 +84,22 @@ class NuistDaily(object):
         title = re.findall(
             r"title='(.+?)'", '\n'.join(class_btt))
         link = re.findall(
-            r"href='(.+?)'", '\n'.join(class_btt))
+            r"href='/(.+?)'", '\n'.join(class_btt))
+        link = ["https://ssl123xxgg.vpn.nuist.edu.cn/" + l for l in link]
+        # 获取全文 TODO 分段
+        content = []
+        for l in link:
+            html = self.session.get(url=l,
+                                    headers=self.headers,
+                                    verify=False)
+            html.encoding = 'utf-8'
+            html = html.text
+            ct = re.findall(
+                r"<div class=\"read\">([\s\S]*?)</div>", html)
+            ct = re.findall(
+                r">([^>]+?)<", '\n'.join(ct))
+            content.append('\n'.join(ct))
+            print(l)  # 已爬取的全文
         # 公告日期
         class_news_date = re.findall(
             r"<span class=\"news_date\">(.+?)</span>", '\n'.join(news))
@@ -91,7 +112,7 @@ class NuistDaily(object):
             # 因为一大早可能没有新通知，所以放昨天和今天的
             if day[d] == str(self.today.day) or day[d] == str((self.today + timedelta(days=-1)).day):
                 self.news_list[category[d]].append(
-                    (title[d], link[d], day[d]))
+                    (title[d], link[d], '-'.join(date[d]), content[d]))
 
     def make_html(self):
         # 打开文件，准备写入
@@ -104,22 +125,22 @@ class NuistDaily(object):
             <title>NuistDaily</title>
         </head>
         <body>
-        <a href="https://ssl123xxgg.vpn.nuist.edu.cn/791/list.htm" rel="noopener noreferrer" target="_blank">信息公告</a>
+        <a href="https://client.vpn.nuist.edu.cn:4443/client/#/login" rel="noopener noreferrer" target="_blank">vpn</a>
         """
         # 公告部分
         message2 = """
         """
         # 添加公告
-        for i in self.news_list:
-            if len(self.news_list[i]) > 0:
-                message2 += "<details open><summary>" + \
-                    "<b>" + i + "</b>" + "&#9;" + \
-                    "<font color='red'>" + \
-                    str(len(self.news_list[i])) + " new</font></summary>"
-                for j in self.news_list[i]:
-                    message2 += "<li><a href='https://ssl123xxgg.vpn.nuist.edu.cn/" + \
-                        j[1]+"' target='_blank' title='" + \
-                        j[2]+"日'>"+j[0]+"</a></li>"
+        for i in self.news_list:  # 类别
+            if len(self.news_list[i]) > 0:  # 只显示有新闻的类别
+                message2 += "<details open>" +\
+                    "<summary><b>" + i + "</b>" + "&#9;" +\
+                    "<font color='red'>" + str(len(self.news_list[i])) + " new</font>" +\
+                    "</summary>"
+                for j in self.news_list[i]:  # 正文
+                    message2 += "<details>" +\
+                        "<summary>[" + j[2]+"] " + j[0]+"</summary>" +\
+                        j[3]+"</details><hr>"
                 message2 += "</details>"
         # 结尾 TODO：可以加脚本 script
         message3 = """
@@ -131,6 +152,8 @@ class NuistDaily(object):
         # 写入文件
         f.write(message)
         f.close()
+
+    def show_html(self):
         # 运行完自动在网页中显示
         webbrowser.open(self.TAR_HTML, new=1)
 
@@ -140,3 +163,4 @@ if __name__ == '__main__':
     spider.get_html()
     spider.get_news()
     spider.make_html()
+    spider.show_html()
