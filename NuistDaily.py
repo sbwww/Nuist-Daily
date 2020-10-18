@@ -110,7 +110,7 @@ class NuistDaily(object):
         # 把公告加到 news_list 中
         for d in range(len(date)):
             # 因为一大早可能没有新通知，所以放昨天和今天的
-            if day[d] == str(self.today.day) or day[d] == str((self.today + timedelta(days=-1)).day):
+            if year[d] == str(self.today.year) and month[d] == str(self.today.month) and (day[d] == str(self.today.day) or day[d] == str((self.today + timedelta(days=-1)).day)):
                 self.news_list[category[d]].append(
                     (title[d], link[d], '-'.join(date[d]), content[d]))
 
