@@ -68,6 +68,16 @@ class NuistDaily(object):
         html.encoding = 'utf-8'
         self.html = html.text
 
+    def check_date(self, year, month, day):
+        # 因为一大早可能没有新通知，所以放昨天和今天的
+        yesterday = self.today + timedelta(days=-1)
+        if int(year) == self.today.year or int(year) == yesterday.year:
+            if int(month) == self.today.month or int(month) == yesterday.month:
+                # 都要是两位数！！！
+                if int(day) == self.today.day or int(day) == yesterday.day:
+                    return True
+        return False
+
     # 正则表达式提取内容
     def get_news(self):
         # 公告整体
@@ -109,8 +119,7 @@ class NuistDaily(object):
         year, month, day = date[:, 0], date[:, 1], date[:, 2]  # 年月日
         # 把公告加到 news_list 中
         for d in range(len(date)):
-            # 因为一大早可能没有新通知，所以放昨天和今天的
-            if year[d] == str(self.today.year) and month[d] == str(self.today.month) and (day[d] == str(self.today.day) or day[d] == str((self.today + timedelta(days=-1)).day)):
+            if self.check_date(year[d], month[d], day[d]) == True:
                 self.news_list[category[d]].append(
                     (title[d], link[d], '-'.join(date[d]), content[d]))
 
