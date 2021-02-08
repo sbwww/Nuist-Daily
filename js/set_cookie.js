@@ -1,0 +1,1 @@
+function set_cookie(){document.cookie = "web_vpn_user_token=;";}
