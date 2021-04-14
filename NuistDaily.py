@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta
 
 import numpy as np
 import requests
+from selenium import webdriver
 
 warnings.filterwarnings("ignore")
 
@@ -27,18 +28,11 @@ class NuistDaily(object):
         except:
             print("info.json 格式错误\n\
                 示例：{\"username\": \"201883290000\", \"password\": \"201883290000\", \"last_update\": \"20xx-xx-xx\"}")
-        md5 = hashlib.md5()
-        md5.update(self.password.encode('utf-8'))
-        self.md5pass = md5.hexdigest()
-        self.post_url = "https://client.vpn.nuist.edu.cn:4443/api/enwas/pg/login"
-        self.get_url_prefix = "https://ssl123xxgg.vpn.nuist.edu.cn/791/list"
+
+        self.post_url = "https://client.vpn.nuist.edu.cn/enlink/sso/login"
+        self.get_url_prefix = "https://client.vpn.nuist.edu.cn/https/webvpn62756c6c6574696e2e6e756973742e6564752e636e/791/list"
         self.get_url_suffix = ".htm"  # FIXME: 1~10页是.htm，后面是.psp
         self.session = requests.session()  # 实例化session会话保持对象
-        self.login_data = {
-            "name": self.username,
-            "password": self.md5pass,
-            "t": self.password
-        }
         self.headers = {
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.122 Safari/537.36"
@@ -60,23 +54,34 @@ class NuistDaily(object):
             '组织人事': []
         }
 
-    # 先post登录vpn 再get公告内容
+    def login(self):
+        # 无头Chrome浏览器
+        option = webdriver.ChromeOptions()
+        option.add_argument('headless')
+        option.add_argument('log-level=3')
+        try:
+            browser = webdriver.Chrome(
+                'driver/chromedriver-89.exe', chrome_options=option)
+        except:
+            print('chrome driver version')
+        # 打开网页
+        browser.get(self.post_url)
+        # 填信息，登录
+        browser.find_element_by_id("account").send_keys(self.username)
+        browser.find_element_by_id("loginPass").send_keys(self.password)
+        browser.execute_script("loginHandle()")
+        # 同步 session
+        sel_cookies = browser.get_cookies()  # 获取selenium侧的cookies
+        jar = requests.cookies.RequestsCookieJar()  # 先构建RequestsCookieJar对象
+        for i in sel_cookies:
+            # 将selenium侧获取的完整cookies的每一个cookie名称和值传入RequestsCookieJar对象
+            # domain和path为可选参数，主要是当出现同名不同作用域的cookie时，为了防止后面同名的cookie将前者覆盖而添加的
+            jar.set(i['name'], i['value'], domain=i['domain'], path=i['path'])
+        # 将配置好的RequestsCookieJar对象加入到requests形式的session会话中
+        self.session.cookies.update(jar)
+
     def get_html(self, page):
-        # post 登录
-        self.session.post(url=self.post_url,
-                          data=json.dumps(self.login_data),
-                          headers=self.headers,
-                          verify=False,
-                          allow_redirects=False)
         get_url = self.get_url_prefix+str(page)+self.get_url_suffix
-        cookies_dict = requests.utils.dict_from_cookiejar(self.session.cookies)
-        # 获取 cookies FIXME: 怎么存？
-        with open('js\\set_cookie.js', 'w', encoding='utf-8') as js:
-            cookies_message = ""
-            for key in cookies_dict:
-                cookies_message += key + "=" + cookies_dict[key] + ";"
-                js.write(
-                    "function set_cookie(){document.cookie = \"" + cookies_message + "\";}")
         # get 获取页面
         html = self.session.get(url=get_url,
                                 headers=self.headers,
@@ -109,7 +114,7 @@ class NuistDaily(object):
             r"title='(.+?)'", '\n'.join(class_btt))
         link = re.findall(
             r"href='/(.+?)'", '\n'.join(class_btt))
-        link = ["https://ssl123xxgg.vpn.nuist.edu.cn/" + l for l in link]
+        link = ["https://client.vpn.nuist.edu.cn/" + l for l in link]
         # 公告日期
         class_news_date = re.findall(
             r"<span class=\"news_date\">(.+?)</span>", '\n'.join(news))
@@ -146,9 +151,9 @@ class NuistDaily(object):
         <head>
             <meta charset="utf-8">
             <title>NuistDaily</title>
-            <script src="js/set_cookie.js"></script>
+            <!-- <script src="js/set_cookie.js"></script> -->
         </head>
-        <body onload="set_cookie()">
+        <!-- <body onload="set_cookie()"> -->
         <a href="https://client.vpn.nuist.edu.cn:4443/client/#/login" rel="noopener noreferrer" target="_blank">vpn</a>
         """
         # 公告部分
@@ -195,6 +200,7 @@ class NuistDaily(object):
 
 if __name__ == '__main__':
     spider = NuistDaily()
+    spider.login()
     # 日期超出则停止，最多10页
     for i in range(1, 11):
         spider.get_html(i)
