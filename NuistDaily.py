@@ -61,7 +61,9 @@ class NuistDaily(object):
         option.add_argument('log-level=3')
         try:
             browser = webdriver.Chrome(
-                'driver/chromedriver-89.exe', chrome_options=option)
+                'driver/chromedriver-89-win.exe',
+                # 'driver/chromedriver-85-linux',
+                chrome_options=option)
         except:
             print('chrome driver version')
         # 打开网页
