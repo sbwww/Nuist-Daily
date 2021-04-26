@@ -65,7 +65,7 @@ class NuistDaily(object):
                 # 'driver/chromedriver-85-linux',
                 chrome_options=option)
         except:
-            print('chrome driver version')
+            print('浏览器驱动版本不匹配')  # FIXME: 改为可选择版本
         # 打开网页
         browser.get(self.post_url)
         # 填信息，登录
@@ -79,8 +79,14 @@ class NuistDaily(object):
             # 将selenium侧获取的完整cookies的每一个cookie名称和值传入RequestsCookieJar对象
             # domain和path为可选参数，主要是当出现同名不同作用域的cookie时，为了防止后面同名的cookie将前者覆盖而添加的
             jar.set(i['name'], i['value'], domain=i['domain'], path=i['path'])
+        # 是否登陆成功
+        if(jar.get('clientInfo') == None):
+            print('登陆失败')
+            return False
         # 将配置好的RequestsCookieJar对象加入到requests形式的session会话中
         self.session.cookies.update(jar)
+        print('登陆成功')
+        return True
 
     def get_html(self, page):
         get_url = self.get_url_prefix+str(page)+self.get_url_suffix
@@ -156,7 +162,7 @@ class NuistDaily(object):
             <!-- <script src="js/set_cookie.js"></script> -->
         </head>
         <!-- <body onload="set_cookie()"> -->
-        <a href="https://client.vpn.nuist.edu.cn:4443/client/#/login" rel="noopener noreferrer" target="_blank">vpn</a>
+        <a href="https://client.vpn.nuist.edu.cn/enlink/sso/login" rel="noopener noreferrer" target="_blank">vpn</a>
         """
         # 公告部分
         message2 = """
@@ -199,15 +205,33 @@ class NuistDaily(object):
             json.dump(info, f, ensure_ascii=False)
             f.truncate()
 
+    # 检查并修改用户名密码，存入 json
+    def change_info(self):
+        print("请检查用户名密码")
+        print("用户名："+self.username)
+        print("密  码："+self.password)
+        with open('info.json', 'r+', encoding='utf-8') as f:
+            info = json.load(f)
+            self.username = input("用户名：")
+            self.password = input("密  码：")
+            info["username"] = self.username
+            info["password"] = self.password
+            f.seek(0)
+            json.dump(info, f, ensure_ascii=False)
+            f.truncate()
 
-if __name__ == '__main__':
+
+def main():
     spider = NuistDaily()
-    spider.login()
+    # 允许修改用户名密码
+    while spider.login() == False:
+        spider.change_info()
     # 日期超出则停止，最多10页
     for i in range(1, 11):
         spider.get_html(i)
         if spider.get_news() == False:
             break
+    # 循环正常退出，即超过10页
     else:
         print("距离上次更新太远")
     # 生成 html 并打开
@@ -215,3 +239,7 @@ if __name__ == '__main__':
     spider.show_html()
     # 更新日期
     spider.update_record()
+
+
+if __name__ == '__main__':
+    main()
